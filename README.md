@@ -87,6 +87,17 @@ go build -o build/video-translator-cli    ./cmd/cli
 go build -o build/video-translator-server ./cmd/server
 ```
 
+## Test
+
+```bash
+go test ./config/... ./internal/... ./pkg/util/...
+go vet  ./config/... ./internal/... ./pkg/util/...
+```
+
+The dubbing timing model (`internal/service/dubbing_timing.go`) is pure and unit
+tested in isolation from ffmpeg — see `dubbing_timing_test.go` for the drift,
+resync, and speed-cap cases.
+
 ## CLI usage
 
 Generate subtitles (English source → Vietnamese):
@@ -131,6 +142,10 @@ A local video file works in place of a URL:
 ```
 
 Then open `http://127.0.0.1:8888` (host/port configurable under `[server]`).
+
+> Note: the web UI is inherited from KrillinAI and runs an older task flow that is
+> separate from the CLI pipeline. The CLI is the primary, fully-tested entrypoint;
+> the web server is not yet verified end-to-end for this stripped-down build.
 
 ## License
 

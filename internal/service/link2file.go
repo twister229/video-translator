@@ -84,16 +84,47 @@ func (s Service) linkToFile(ctx context.Context, stepParam *types.SubtitleTaskSt
 			log.GetLogger().Error("linkToFile download audio yt-dlp error", zap.Any("step param", stepParam), zap.String("output", string(output)), zap.Error(err))
 			return fmt.Errorf("linkToFile download audio yt-dlp error: %w", err)
 		}
+	} else if strings.HasPrefix(link, "http://") || strings.HasPrefix(link, "https://") {
+		// 通用媒体链接（直链 mp4、m3u8、其他 yt-dlp 可解析站点等）
+		// 通过 yt-dlp 的通用解析器下载音频。
+		cmdArgs := []string{
+			"-f", "bestaudio/best",
+			"--extract-audio",
+			"--audio-format", "mp3",
+			"--audio-quality", "192K",
+			"-o", audioPath,
+			stepParam.Link,
+		}
+		if config.Conf.App.Proxy != "" {
+			cmdArgs = append(cmdArgs, "--proxy", config.Conf.App.Proxy)
+		}
+		if storage.FfmpegPath != "ffmpeg" {
+			cmdArgs = append(cmdArgs, "--ffmpeg-location", storage.FfmpegPath)
+		}
+		cmd := exec.Command(storage.YtdlpPath, cmdArgs...)
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			log.GetLogger().Error("linkToFile download audio yt-dlp error", zap.Any("step param", stepParam), zap.String("output", string(output)), zap.Error(err))
+			return fmt.Errorf("linkToFile download audio yt-dlp error: %w", err)
+		}
 	} else {
 		log.GetLogger().Info("linkToFile.unsupported link type", zap.Any("step param", stepParam))
-		return errors.New("linkToFile error: unsupported link, only support youtube, bilibili and local file")
+		return errors.New("linkToFile error: unsupported link, only support youtube, bilibili, generic http(s) media url and local file")
 	}
 	stepParam.TaskPtr.ProcessPct = 6
 	stepParam.AudioFilePath = audioPath
 
 	if !strings.HasPrefix(link, "local:") && stepParam.EmbedSubtitleVideoType != "none" {
 		// 需要下载原视频
-		cmdArgs := []string{"-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]", "-o", videoPath, stepParam.Link}
+		isPlatform := strings.Contains(link, "youtube.com") || strings.Contains(link, "bilibili.com")
+		var format string
+		if isPlatform {
+			format = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]"
+		} else {
+			// 通用直链通常是单个渐进式文件，无独立音视频流可合并。
+			format = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+		}
+		cmdArgs := []string{"-f", format, "-o", videoPath, stepParam.Link}
 		if config.Conf.App.Proxy != "" {
 			cmdArgs = append(cmdArgs, "--proxy", config.Conf.App.Proxy)
 		}

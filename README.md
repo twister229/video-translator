@@ -80,6 +80,39 @@ dubbing) set in `config/config.toml`:
     provider = "edge-tts"       # free, no key needed
 ```
 
+### Custom LLM provider (OpenAI-compatible)
+
+The translation step (`[llm]`) works with any OpenAI-compatible chat API —
+DeepSeek, Qwen/DashScope, Groq, OpenRouter, Together, a local Ollama/vLLM server,
+or a gateway. Set `base_url`, `api_key`, and `model`:
+
+```toml
+[llm]
+    base_url = "https://api.deepseek.com/v1"   # custom endpoint, include the /v1 path
+    api_key  = "your-provider-key"
+    model    = "deepseek-chat"
+```
+
+Common endpoints (note the path prefix — the client appends `/chat/completions`):
+
+| Provider   | `base_url`                          |
+|------------|-------------------------------------|
+| OpenAI     | leave empty (default)               |
+| DeepSeek   | `https://api.deepseek.com/v1`       |
+| Groq       | `https://api.groq.com/openai/v1`    |
+| OpenRouter | `https://openrouter.ai/api/v1`      |
+| Ollama     | `http://localhost:11434/v1`         |
+
+Three things to know:
+
+- **`[llm]`, `[transcribe]`, and `[tts]` are independent** and each has its own
+  `base_url`/`api_key`. A custom LLM provider only changes translation.
+- **Transcription needs a Whisper-compatible `/audio/transcriptions` endpoint**,
+  which most LLM-only providers do not offer. Keep `[transcribe]` on real OpenAI,
+  or use a local backend (`fasterwhisper`, `whisperkit`, `whisper.cpp`).
+- **The chat call uses streaming.** Nearly all OpenAI-compatible providers support
+  it; if a specific one does not, translation will error on the stream request.
+
 ## Build
 
 ```bash
@@ -137,11 +170,33 @@ A local video file works in place of a URL:
 
 ## Web server
 
+Build and start the server, then use the browser UI:
+
 ```bash
+go build -o build/video-translator-server ./cmd/server
 ./build/video-translator-server
 ```
 
-Then open `http://127.0.0.1:8888` (host/port configurable under `[server]`).
+Open `http://127.0.0.1:8888` (host/port configurable under `[server]` in
+`config/config.toml`). The server requires a valid `config/config.toml` at startup
+— it exits immediately if none is found.
+
+In the browser you:
+
+1. Upload a video (or paste a URL).
+2. Choose target language (Vietnamese), bilingual on/off, and whether to generate dubbing.
+3. Start the task and watch progress, then download the SRT and dubbed video.
+
+It exposes a small JSON API under `/api` if you prefer to drive it directly:
+
+| Method | Path                          | Purpose                          |
+|--------|-------------------------------|----------------------------------|
+| POST   | `/api/capability/subtitleTask`| Start a subtitle/dub task        |
+| GET    | `/api/capability/subtitleTask`| Poll task status                 |
+| POST   | `/api/file`                   | Upload a source video            |
+| GET    | `/api/file/*`                 | Download a result file           |
+| GET    | `/api/config`                 | Read current config              |
+| POST   | `/api/config`                 | Update config at runtime         |
 
 > Note: the web UI is inherited from KrillinAI and runs an older task flow that is
 > separate from the CLI pipeline. The CLI is the primary, fully-tested entrypoint;

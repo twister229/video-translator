@@ -1,0 +1,58 @@
+# Video Translator config
+# Pipeline: speech recognition (transcribe) -> LLM translation (llm) -> dubbing (tts)
+# Output language target: Vietnamese (vi)
+
+[app]
+    segment_duration = 5          # Audio split interval in minutes (5-10 recommended)
+    transcribe_parallel_num = 1   # Concurrent transcription jobs (1-3)
+    translate_parallel_num = 3    # Concurrent translation jobs
+    transcribe_max_attempts = 3
+    translate_max_attempts = 5
+    max_sentence_length = 70      # Max chars per sentence before splitting
+    enable_block_vtt_batch = false
+    vtt_batch_size = 10
+    target_language_first = true  # In bilingual subtitles, put target (Vietnamese) on top
+    short_subtitle_max_chars = 20
+    dub_background_volume = 0.15  # Original audio (music/SFX) level under the dub, 0-1.
+                                  # 0 = silence original, 1 = no ducking. 0.15 keeps it at 15%.
+    dub_max_speed = 1.3           # Max speed-up for dub lines that overflow their subtitle window.
+                                  # Vietnamese is often longer than the source; capping at ~1.3x
+                                  # avoids the chipmunk effect. Overflow beyond this becomes drift.
+    dub_max_drift_ms = 2000       # Max cumulative dub-behind-video drift (ms) before forcing
+                                  # harder catch-up. Keeps long videos from drifting out of sync.
+    proxy = ""                    # Optional network proxy, e.g. http://127.0.0.1:7890
+
+[server]
+    host = "127.0.0.1"
+    port = 8888
+
+# Translation model: any OpenAI-compatible API (OpenAI, DeepSeek, Qwen, local, etc.)
+[llm]
+    base_url = ""                 # Leave empty for official OpenAI API
+    api_key = ""                  # Your API key (required)
+    model = "gpt-4o-mini"         # Translation model
+    json = false
+
+# Speech recognition. Default uses OpenAI Whisper API (simplest, cross-platform).
+[transcribe]
+    provider = "openai"           # openai | fasterwhisper | whisperkit | whisper.cpp
+    enable_gpu_acceleration = false
+    [transcribe.openai]
+        base_url = ""
+        api_key = ""              # Your OpenAI API key (required for transcription)
+        model = "whisper-1"
+    [transcribe.fasterwhisper]
+        model = "medium"          # tiny | medium | large-v2 (not on macOS)
+    [transcribe.whisperkit]
+        model = "large-v2"        # macOS Apple Silicon only
+    [transcribe.whispercpp]
+        model = "large-v2"        # Windows only
+
+# Dubbing (text-to-speech). Default is edge-tts: free, no API key, good Vietnamese voices.
+# Vietnamese voices: vi-VN-HoaiMyNeural (female), vi-VN-NamMinhNeural (male).
+[tts]
+    provider = "edge-tts"         # edge-tts | openai
+    [tts.openai]
+        base_url = ""
+        api_key = ""
+        model = "gpt-4o-mini-tts"
